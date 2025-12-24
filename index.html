@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNP Paribas - Espace Client</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bnp-green: #00965e;
+        }
+        .bg-bnp { background-color: var(--bnp-green); }
+        .text-bnp { color: var(--bnp-green); }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--bnp-green);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        .gold-card {
+            background: linear-gradient(135deg, #d4af37 0%, #f9f295 45%, #e6be8a 70%, #b8860b 100%);
+            color: #3d2b00;
+        }
+
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+            z-index: 50;
+        }
+
+        /* Correction cruciale pour la visibilité des sections */
+        .hidden-section { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+
+    <!-- Écran de Connexion -->
+    <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen p-4">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border-t-8 border-bnp">
+            <div class="flex justify-center mb-6">
+                <div class="text-3xl font-bold text-bnp">BNP PARIBAS</div>
+            </div>
+            <h2 class="text-xl font-semibold mb-6 text-center text-gray-700">Accès à vos comptes</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">IDENTIFIANT</label>
+                    <input type="text" id="login-id" class="w-full p-3 border rounded focus:ring-2 focus:ring-green-500 outline-none" placeholder="7897620168">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">CODE SECRET</label>
+                    <input type="password" id="login-code" class="w-full p-3 border rounded focus:ring-2 focus:ring-green-500 outline-none" placeholder="548521">
+                </div>
+                <button onclick="handleLogin()" class="w-full bg-bnp text-white py-3 rounded-lg font-bold hover:bg-green-700 transition">SE CONNECTER</button>
+            </div>
+            <p id="login-error" class="text-red-500 text-xs mt-4 text-center hidden">Identifiant ou code secret incorrect.</p>
+        </div>
+    </div>
+
+    <!-- Interface Principale -->
+    <div id="dashboard" class="hidden min-h-screen flex flex-col">
+        
+        <!-- Menu Dépliant -->
+        <div id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl transform -translate-x-full">
+            <div class="p-6 bg-bnp text-white flex justify-between items-center">
+                <span class="font-bold text-xl">MENU</span>
+                <button onclick="toggleSidebar()" class="text-2xl">&times;</button>
+            </div>
+            <nav class="mt-4">
+                <a href="#" onclick="showSection('transactions')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">Accueil / Historique</a>
+                <a href="#" onclick="showSection('rib')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">RIB / IBAN</a>
+                <a href="#" onclick="showSection('carte')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">CARTE</a>
+                <a href="#" onclick="showSection('virement')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">VIREMENT</a>
+                <a href="#" onclick="showSection('synthese')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">SYNTHÈSE</a>
+                <a href="#" onclick="showSection('services')" class="block px-6 py-4 hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">SERVICES</a>
+            </nav>
+        </div>
+
+        <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
+
+        <!-- Partie Verte (Top) -->
+        <div class="bg-bnp text-white p-6 pb-12 shadow-md">
+            <div class="flex justify-between items-center mb-8">
+                <button onclick="toggleSidebar()" class="p-2 bg-white bg-opacity-20 rounded-lg">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <div class="flex items-center gap-4">
+                    <p class="text-sm font-medium">Compte Courant de Émilie Graux</p>
+                    <button onclick="handleLogout()" class="px-4 py-2 bg-white text-bnp font-bold rounded-lg text-xs">DÉCONNEXION</button>
+                </div>
+            </div>
+
+            <div class="text-left">
+                <h1 class="text-5xl font-extrabold">800 000,00 €</h1>
+                <div id="current-datetime" class="mt-4 text-xs opacity-80 font-mono bg-black bg-opacity-10 py-1 px-4 rounded-full inline-block"></div>
+            </div>
+        </div>
+
+        <!-- Partie Blanche (Contenu Dynamique) -->
+        <div class="bg-white flex-grow -mt-6 rounded-t-3xl p-6 shadow-inner">
+            
+            <!-- Section Historique -->
+            <div id="section-transactions" class="content-section">
+                <h3 class="text-xl font-bold mb-4">Dernières transactions</h3>
+                <div class="space-y-4">
+                    <div class="flex justify-between p-4 border-b">
+                        <div><p class="font-bold">VIREMENT ENTRANT</p><p class="text-xs text-gray-500">22/12/2025</p></div>
+                        <span class="text-green-600 font-bold">+ 15 000 €</span>
+                    </div>
+                    <div class="flex justify-between p-4 border-b">
+                        <div><p class="font-bold">PAIEMENT CARTE</p><p class="text-xs text-gray-500">21/12/2025</p></div>
+                        <span class="text-red-600 font-bold">- 1 250 €</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section RIB -->
+            <div id="section-rib" class="content-section hidden-section">
+                <h3 class="text-xl font-bold mb-4">RIB / IBAN</h3>
+                <div class="bg-gray-50 p-4 rounded border">
+                    <p class="text-xs text-gray-500">TITULAIRE</p>
+                    <p class="font-bold mb-2">Mme Émilie GRAUX</p>
+                    <p class="text-xs text-gray-500">IBAN</p>
+                    <p class="font-mono font-bold">FR76 3000 4015 6278 9762 0168 12</p>
+                </div>
+            </div>
+
+            <!-- Section Carte (Strictement isolée ici) -->
+            <div id="section-carte" class="content-section hidden-section flex flex-col items-center">
+                <h3 class="text-xl font-bold mb-6 self-start">MA CARTE GOLD</h3>
+                <div class="gold-card w-full max-w-sm h-52 rounded-2xl p-6 shadow-2xl relative overflow-hidden transition-transform hover:scale-105 duration-300">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="text-xs font-bold italic">BNP PARIBAS</div>
+                        <div class="w-12 h-10 bg-gradient-to-br from-yellow-200 to-yellow-500 rounded-md opacity-50"></div>
+                    </div>
+                    
+                    <div class="text-2xl font-mono tracking-widest mb-4">
+                        4576 •••• •••• 1289
+                    </div>
+                    
+                    <div class="flex justify-between items-end">
+                        <div class="space-y-1">
+                            <p class="text-[10px] uppercase opacity-70">Titulaire</p>
+                            <p class="font-bold text-sm">ÉMILIE GRAUX</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] uppercase opacity-70">Expire fin</p>
+                            <p class="font-bold text-sm">12/28</p>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-4 right-4 font-bold italic text-xl opacity-40">VISA</div>
+                </div>
+                <div class="mt-8 w-full max-w-sm bg-gray-50 p-4 rounded-lg border text-center">
+                    <p class="text-xs text-gray-500 mb-1">IBAN CRYPTÉ ASSOCIÉ :</p>
+                    <p class="font-mono font-bold">FR76 •••• •••• •••• 9762 •••• 12</p>
+                </div>
+            </div>
+
+            <!-- Section Virement -->
+            <div id="section-virement" class="content-section hidden-section">
+                <h3 class="text-xl font-bold mb-4">VIREMENT</h3>
+                <div id="transfer-form" class="space-y-3">
+                    <input type="text" placeholder="Nom" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Nom de banque" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="IBAN" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Code SWIFT" class="w-full p-2 border rounded">
+                    <input type="number" placeholder="Montant" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Motif" class="w-full p-2 border rounded">
+                    <button onclick="executeTransfer()" class="w-full bg-bnp text-white py-3 rounded font-bold">VALIDER LE VIREMENT</button>
+                </div>
+                <div id="transfer-loading" class="hidden flex flex-col items-center p-10">
+                    <div class="loader mb-4"></div>
+                    <p>Traitement en cours...</p>
+                </div>
+            </div>
+
+            <!-- Section Synthèse -->
+            <div id="section-synthese" class="content-section hidden-section space-y-4">
+                <h3 class="text-xl font-bold">SYNTHÈSE DES COMPTES</h3>
+                <div class="p-4 bg-gray-50 rounded border-l-4 border-bnp flex justify-between items-center">
+                    <span>Compte Courant</span><span class="font-bold">800 000,00 €</span>
+                </div>
+                <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 flex justify-between items-center">
+                    <span>Compte d'Épargne</span><span class="font-bold">125 450,00 €</span>
+                </div>
+                <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 flex justify-between items-center">
+                    <span>Livret A</span><span class="font-bold">22 950,00 €</span>
+                </div>
+            </div>
+
+            <!-- Section Services -->
+            <div id="section-services" class="content-section hidden-section">
+                <h3 class="text-xl font-bold mb-4">SERVICES</h3>
+                <div class="space-y-3">
+                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
+                        <span class="font-bold">PRÊTS</span>
+                        <p class="hidden text-sm text-gray-600 mt-2 italic">Consultez nos offres de financement personnalisées.</p>
+                    </div>
+                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
+                        <span class="font-bold">INVESTISSEMENTS</span>
+                        <p class="hidden text-sm text-gray-600 mt-2 italic">Gérez vos placements et votre épargne financière.</p>
+                    </div>
+                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
+                        <span class="font-bold">ASSURANCES</span>
+                        <p class="hidden text-sm text-gray-600 mt-2 italic">Découvrez nos solutions de protection et prévoyance.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Notification Push (Modal) -->
+    <div id="push-notification" class="fixed inset-0 flex items-center justify-center z-[100] hidden px-4">
+        <div class="bg-black bg-opacity-50 absolute inset-0"></div>
+        <div class="bg-white rounded-xl p-8 max-w-sm w-full relative shadow-2xl text-center border-t-8 border-red-500">
+            <h4 class="text-lg font-bold mb-4">Notification</h4>
+            <p class="text-sm text-gray-600 mb-6 leading-relaxed">Votre quota de retraits en espèces et plafond de paiement/virement du mois son atteint . veullez conacter votre gesionnaire pour plus d'information.</p>
+            <button onclick="document.getElementById('push-notification').classList.add('hidden')" class="w-full bg-gray-900 text-white py-3 rounded font-bold">FERMER</button>
+        </div>
+    </div>
+
+    <script>
+        function updateDateTime() {
+            const now = new Date();
+            const element = document.getElementById('current-datetime');
+            if (element) {
+                element.textContent = now.toLocaleDateString('fr-FR', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+            }
+        }
+        setInterval(updateDateTime, 1000);
+
+        function handleLogin() {
+            const id = document.getElementById('login-id').value.trim();
+            const code = document.getElementById('login-code').value.trim();
+            const errorElement = document.getElementById('login-error');
+            
+            if (id === "7897620168" && code === "548521") {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                errorElement.classList.add('hidden');
+                showSection('transactions');
+                updateDateTime();
+            } else {
+                errorElement.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('login-id').value = "";
+            document.getElementById('login-code').value = "";
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.toggle('hidden');
+        }
+
+        function showSection(id) {
+            document.querySelectorAll('.content-section').forEach(s => {
+                s.classList.add('hidden-section');
+            });
+            
+            const target = document.getElementById('section-' + id);
+            if (target) {
+                target.classList.remove('hidden-section');
+            }
+            
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                toggleSidebar();
+            }
+        }
+
+        function executeTransfer() {
+            document.getElementById('transfer-form').classList.add('hidden');
+            document.getElementById('transfer-loading').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('transfer-loading').classList.add('hidden');
+                document.getElementById('transfer-form').classList.remove('hidden');
+                document.getElementById('push-notification').classList.remove('hidden');
+            }, 7000);
+        }
+        
+        window.onload = updateDateTime;
+    </script>
+</body>
+</html>
