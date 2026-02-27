@@ -28,15 +28,15 @@
         .animate-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .gold-card { background: linear-gradient(135deg, #c19a27 0%, #f7e07a 50%, #a67c00 100%); }
+        .dropdown-shadow { box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // Sécurité pour la configuration Firebase
         let firebaseConfig = {};
         try {
             firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -47,17 +47,16 @@
         const CLIENT_ID = "741085296";
         const CLIENT_MDP = "456123";
         const INITIAL_BALANCE = 2452400;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bnp-fictif-001';
 
         const Icon = ({ name, size = 24, className = "" }) => {
             const icons = {
-                menu: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
-                x: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+                menu: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
                 logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
-                eye: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>,
+                creditCard: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>,
                 send: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
                 history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-                alert: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                alert: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
+                home: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             };
             return icons[name] || null;
         };
@@ -70,22 +69,18 @@
             const [isTransferring, setIsTransferring] = useState(false);
             const [showTransferError, setShowTransferError] = useState(false);
             const [beneficiaryName, setBeneficiaryName] = useState('');
+            const [activeTab, setActiveTab] = useState('overview');
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const menuRef = useRef(null);
 
-            // Initialisation Firebase silencieuse
             useEffect(() => {
-                const init = async () => {
-                    if (window.FirebaseSDK && firebaseConfig.apiKey) {
-                        try {
-                            const { initializeApp, getAuth, signInAnonymously } = window.FirebaseSDK;
-                            const app = initializeApp(firebaseConfig);
-                            const auth = getAuth(app);
-                            await signInAnonymously(auth);
-                        } catch (err) {
-                            console.warn("Firebase non initialisé (mode déconnecté)");
-                        }
+                const handleClickOutside = (event) => {
+                    if (menuRef.current && !menuRef.current.contains(event.target)) {
+                        setIsMenuOpen(false);
                     }
                 };
-                init();
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
             }, []);
 
             const handleLogin = (e) => {
@@ -94,41 +89,39 @@
                     setView('dashboard');
                     setError('');
                 } else {
-                    setError('Identifiants incorrects. Veuillez vérifier votre numéro client et votre code secret.');
+                    setError('Identifiants incorrects.');
                 }
             };
 
             const handleTransfer = (e) => {
                 e.preventDefault();
-                const name = e.target.beneficiary.value;
-                setBeneficiaryName(name);
+                setBeneficiaryName(e.target.beneficiary.value);
                 setIsTransferring(true);
                 setTimeout(() => {
                     setIsTransferring(false);
                     setShowTransferError(true);
-                }, 3000);
+                }, 2500);
             };
 
             if (view === 'login') {
                 return (
                     <div className="min-h-screen flex items-center justify-center p-4 bg-emerald-900">
-                        <div className="w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden animate-in">
-                            <div className="p-10 text-center">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BNP_Paribas.svg/500px-BNP_Paribas.svg.png" className="h-10 mx-auto mb-6" alt="BNP Logo" />
-                                <h1 className="text-2xl font-black tracking-tight text-emerald-800 uppercase">Accès Client</h1>
+                        <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden animate-in">
+                            <div className="p-12 text-center">
+                                <h1 className="text-4xl font-black tracking-tighter text-emerald-800 uppercase">BNP PARIBAS</h1>
+                                <p className="mt-2 text-xs font-bold text-gray-400 tracking-[0.3em] uppercase">Espace Client</p>
                             </div>
-                            <form onSubmit={handleLogin} className="p-10 pt-0 space-y-6">
+                            <form onSubmit={handleLogin} className="px-12 pb-12 space-y-6">
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">N° Client</label>
-                                    <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="741085296" required />
+                                    <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="741085296" required />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Code secret</label>
-                                    <input type="password" value={loginMdp} onChange={e => setLoginMdp(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="456123" required />
+                                    <input type="password" value={loginMdp} onChange={e => setLoginMdp(e.target.value)} className="w-full p-5 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="456123" required />
                                 </div>
                                 {error && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-3 rounded-xl">{error}</p>}
-                                <button type="submit" className="w-full bg-[#00965e] text-white py-5 rounded-2xl font-bold text-lg hover:bg-[#007a4d] transition-all shadow-lg active:scale-95">S'identifier</button>
-                                <p className="text-center text-[10px] text-gray-400 uppercase font-bold tracking-widest">La banque d'un monde qui change</p>
+                                <button type="submit" className="w-full bg-[#00965e] text-white py-5 rounded-2xl font-bold text-lg hover:bg-[#007a4d] transition-all shadow-xl active:scale-95">S'identifier</button>
                             </form>
                         </div>
                     </div>
@@ -136,74 +129,196 @@
             }
 
             return (
-                <div className="min-h-screen bg-gray-50">
-                    <header className="bg-[#00965e] text-white p-6 shadow-lg">
-                        <div className="max-w-4xl mx-auto flex justify-between items-center">
-                            <span className="font-black text-2xl tracking-tighter">BNP PARIBAS</span>
-                            <button onClick={() => setView('login')} className="flex items-center gap-2 font-bold text-sm bg-white/10 px-4 py-2 rounded-xl hover:bg-white/20 transition-colors"><Icon name="logout" size={18} /> Déconnexion</button>
+                <div className="min-h-screen bg-gray-50 flex flex-col">
+                    {/* Header avec Menu en haut à gauche */}
+                    <header className="bg-emerald-900 text-white p-4 md:px-8 flex justify-between items-center sticky top-0 z-[100] shadow-xl">
+                        <div className="flex items-center gap-6" ref={menuRef}>
+                            <button 
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="p-2 hover:bg-white/10 rounded-xl transition-colors relative active:scale-90"
+                            >
+                                <Icon name="menu" size={28} />
+                            </button>
+                            
+                            {/* Menu Déroulant */}
+                            {isMenuOpen && (
+                                <div className="absolute top-16 left-4 w-72 bg-white rounded-[32px] dropdown-shadow text-emerald-950 p-4 border border-gray-100 animate-in overflow-hidden">
+                                    <div className="space-y-1">
+                                        <button 
+                                            onClick={() => { setActiveTab('overview'); setIsMenuOpen(false); }}
+                                            className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-sm transition-all ${activeTab === 'overview' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50'}`}
+                                        >
+                                            <Icon name="home" size={20} /> Synthèse du compte
+                                        </button>
+                                        <button 
+                                            onClick={() => { setActiveTab('virement'); setIsMenuOpen(false); }}
+                                            className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-sm transition-all ${activeTab === 'virement' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50'}`}
+                                        >
+                                            <Icon name="send" size={20} /> Faire un virement
+                                        </button>
+                                        <button 
+                                            onClick={() => { setActiveTab('cards'); setIsMenuOpen(false); }}
+                                            className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-sm transition-all ${activeTab === 'cards' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50'}`}
+                                        >
+                                            <Icon name="creditCard" size={20} /> Cartes Gold
+                                        </button>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <button onClick={() => setView('login')} className="w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-sm text-red-500 hover:bg-red-50 transition-all">
+                                            <Icon name="logout" size={20} /> Déconnexion
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <h2 className="text-xl md:text-2xl font-black tracking-tighter">BNP PARIBAS</h2>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="hidden md:block text-right">
+                                <p className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Sabine Foulon</p>
+                                <p className="text-xs font-black">Compte Privilège</p>
+                            </div>
+                            <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center font-bold">SF</div>
                         </div>
                     </header>
 
-                    <main className="max-w-4xl mx-auto p-6 space-y-8 animate-in">
-                        <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100">
-                            <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Solde disponible - Compte Courant</p>
-                            <h2 className="text-5xl font-black text-emerald-900 tracking-tighter">{INITIAL_BALANCE.toLocaleString('fr-FR')} €</h2>
-                            <p className="mt-4 text-xs font-bold text-emerald-600 bg-emerald-50 inline-block px-3 py-1 rounded-full uppercase">Titulaire : SABINE FOULON</p>
-                        </div>
+                    <main className="flex-1 max-w-5xl mx-auto w-full p-6 md:p-10 space-y-10 animate-in">
+                        
+                        {activeTab === 'overview' && (
+                            <>
+                                {/* SOLDE EN HAUT */}
+                                <section className="space-y-2">
+                                    <div className="bg-white p-10 md:p-14 rounded-[48px] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full opacity-50"></div>
+                                        <div className="relative z-10">
+                                            <p className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">Solde du Compte Courant</p>
+                                            <h2 className="text-5xl md:text-7xl font-black text-emerald-900 tracking-tighter leading-none">
+                                                {INITIAL_BALANCE.toLocaleString('fr-FR')} <span className="text-3xl md:text-5xl">€</span>
+                                            </h2>
+                                        </div>
+                                        <div className="bg-emerald-900 text-white px-6 py-4 rounded-[24px] shadow-lg flex items-center gap-4 group cursor-pointer active:scale-95 transition-transform">
+                                            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                                                <Icon name="send" size={22} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Actions rapides</p>
+                                                <p className="font-bold text-sm" onClick={() => setActiveTab('virement')}>Virement express</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
 
-                        <div className="grid md:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2"><Icon name="send" size={20} className="text-[#00965e]"/> Nouveau virement</h3>
-                                <form onSubmit={handleTransfer} className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100 space-y-4">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">Bénéficiaire</label>
-                                        <input name="beneficiary" type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Nom et Prénom" required />
+                                {/* HISTORIQUE EN BAS */}
+                                <section className="space-y-6">
+                                    <div className="flex justify-between items-end px-4">
+                                        <h3 className="font-black text-2xl text-emerald-900 tracking-tighter uppercase">Dernières Opérations</h3>
+                                        <button className="text-xs font-bold text-emerald-600 uppercase tracking-widest hover:underline">Voir tout</button>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">IBAN</label>
-                                        <input type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="FR76..." required />
+                                    <div className="space-y-3">
+                                        {[
+                                            { label: 'Virement reçu - SCI Patrimoine', date: '05 Fév. 2026', amount: '+12 500,00', type: 'positive' },
+                                            { label: 'Loyer Résidence Janvier', date: '01 Fév. 2026', amount: '-2 450,00', type: 'negative' },
+                                            { label: 'Prélèvement EDF Services', date: '28 Jan. 2026', amount: '-142,30', type: 'negative' },
+                                            { label: 'Paiement Apple Store Paris', date: '25 Jan. 2026', amount: '-1 199,00', type: 'negative' },
+                                            { label: 'Dividendes Action BNP', date: '20 Jan. 2026', amount: '+3 420,50', type: 'positive' }
+                                        ].map((item, idx) => (
+                                            <div key={idx} className="bg-white p-6 rounded-[32px] border border-gray-50 flex justify-between items-center hover:shadow-xl hover:scale-[1.01] transition-all group">
+                                                <div className="flex items-center gap-5">
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.type === 'positive' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+                                                        <Icon name={item.type === 'positive' ? 'send' : 'history'} size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-gray-800 group-hover:text-emerald-900 transition-colors">{item.label}</p>
+                                                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{item.date}</p>
+                                                    </div>
+                                                </div>
+                                                <p className={`font-black text-xl tracking-tight ${item.type === 'positive' ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                                    {item.amount} €
+                                                </p>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">Montant</label>
-                                        <input type="number" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0.00 €" required />
+                                </section>
+                            </>
+                        )}
+
+                        {activeTab === 'virement' && (
+                            <div className="max-w-2xl mx-auto animate-in space-y-8">
+                                <h3 className="font-black text-4xl text-emerald-900 tracking-tighter uppercase">Nouveau Virement</h3>
+                                <form onSubmit={handleTransfer} className="bg-white p-12 rounded-[48px] shadow-sm border border-gray-100 space-y-8">
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nom du bénéficiaire</label>
+                                            <input name="beneficiary" type="text" className="w-full p-5 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" placeholder="EX: JEAN DUPONT" required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">IBAN</label>
+                                            <input type="text" className="w-full p-5 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-mono" placeholder="FR76 0000 ..." required />
+                                        </div>
                                     </div>
-                                    <button disabled={isTransferring} className="w-full bg-[#00965e] text-white py-4 rounded-xl font-bold hover:bg-[#007a4d] transition-all disabled:opacity-50 shadow-md active:scale-95">
-                                        {isTransferring ? 'Validation en cours...' : 'Confirmer le virement'}
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 text-center">Montant à transférer</label>
+                                        <input type="number" className="w-full p-8 bg-emerald-50/50 border-none rounded-[32px] outline-none focus:ring-2 focus:ring-emerald-500 text-5xl font-black text-emerald-900 text-center" placeholder="0.00" required />
+                                    </div>
+                                    <button disabled={isTransferring} className="w-full bg-[#00965e] text-white py-6 rounded-[24px] font-black text-xl hover:bg-[#007a4d] transition-all disabled:opacity-50 shadow-2xl shadow-emerald-900/20 active:scale-95">
+                                        {isTransferring ? 'SÉCURISATION DU TRANSFERT...' : 'VALIDER LE VIREMENT'}
                                     </button>
                                 </form>
                             </div>
+                        )}
 
-                            <div className="space-y-6">
-                                <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2"><Icon name="history" size={20} className="text-[#00965e]"/> Historique récent</h3>
-                                <div className="space-y-3">
-                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
-                                        <div><p className="font-bold text-sm text-gray-800">Virement reçu - SCI Patrimoine</p><p className="text-[10px] text-gray-400 uppercase font-bold">05 Fév. 2026</p></div>
-                                        <p className="text-emerald-600 font-black text-lg">+12 500 €</p>
+                        {activeTab === 'cards' && (
+                            <div className="animate-in space-y-10">
+                                <h3 className="font-black text-4xl text-emerald-900 tracking-tighter uppercase">Mes Cartes</h3>
+                                <div className="grid md:grid-cols-2 gap-8 items-start">
+                                    <div className="gold-card aspect-[1.58/1] rounded-[32px] p-10 shadow-2xl relative overflow-hidden flex flex-col justify-between text-emerald-950 border border-yellow-200/50 group hover:rotate-2 transition-transform cursor-pointer">
+                                        <div className="flex justify-between items-start">
+                                            <div className="space-y-2">
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] opacity-70">PREMIER GOLD</p>
+                                                <div className="w-14 h-10 bg-white/30 rounded-lg backdrop-blur-md border border-white/20"></div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black italic text-2xl opacity-80">VISA</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-2xl md:text-3xl font-black tracking-[0.25em]">•••• •••• •••• 8291</p>
+                                            <div className="flex justify-between items-end">
+                                                <p className="font-bold text-sm uppercase tracking-widest">SABINE FOULON</p>
+                                                <p className="text-xs font-black bg-white/20 px-3 py-1 rounded-full uppercase">09/27</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
-                                        <div><p className="font-bold text-sm text-gray-800">Loyer Janvier 2026</p><p className="text-[10px] text-gray-400 uppercase font-bold">01 Fév. 2026</p></div>
-                                        <p className="font-black text-lg">-2 450 €</p>
-                                    </div>
-                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center opacity-60">
-                                        <div><p className="font-bold text-sm text-gray-800">Prélèvement EDF</p><p className="text-[10px] text-gray-400 uppercase font-bold">28 Jan. 2026</p></div>
-                                        <p className="font-black text-lg">-142,30 €</p>
+                                    <div className="bg-white p-8 rounded-[40px] border border-gray-100 h-full">
+                                        <h4 className="font-black text-gray-400 text-xs uppercase tracking-[0.2em] mb-6">Limites de paiements</h4>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <div className="flex justify-between text-sm font-bold mb-2"><span>Plafond retraits / 7 jours</span> <span>1 450 / 5 000 €</span></div>
+                                                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden"><div className="w-[30%] h-full bg-emerald-500"></div></div>
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between text-sm font-bold mb-2"><span>Plafond paiements / 30 jours</span> <span>8 920 / 20 000 €</span></div>
+                                                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden"><div className="w-[45%] h-full bg-emerald-500"></div></div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </main>
 
                     {showTransferError && (
-                        <div className="fixed inset-0 bg-emerald-950/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                            <div className="bg-white rounded-[40px] p-10 max-w-md w-full text-center shadow-2xl animate-in">
-                                <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <Icon name="alert" size={40} />
+                        <div className="fixed inset-0 bg-emerald-950/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[48px] p-12 max-w-md w-full text-center shadow-2xl animate-in">
+                                <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8">
+                                    <Icon name="alert" size={48} />
                                 </div>
-                                <h3 className="text-2xl font-black text-gray-800 mb-2 uppercase tracking-tighter">Virement Rejeté</h3>
-                                <p className="text-gray-500 mb-8 font-medium">
-                                    Le virement vers <span className="font-bold text-gray-800">{beneficiaryName}</span> a été bloqué par le service de sécurité. Votre compte fait l'objet d'un contrôle de conformité.
+                                <h3 className="text-3xl font-black text-gray-800 mb-3 uppercase tracking-tighter leading-none">VIREMENT REJETÉ</h3>
+                                <p className="text-gray-500 mb-10 font-medium text-lg leading-relaxed">
+                                    Le transfert vers <span className="font-bold text-gray-900">{beneficiaryName}</span> a été suspendu pour <span className="text-red-600 font-bold uppercase tracking-tight">Vérification de Conformité</span>.
                                 </p>
-                                <button onClick={() => setShowTransferError(false)} className="w-full bg-emerald-900 text-white py-5 rounded-2xl font-bold shadow-xl active:scale-95 transition-all">J'ai compris</button>
+                                <button onClick={() => setShowTransferError(false)} className="w-full bg-emerald-900 text-white py-6 rounded-[24px] font-black text-xl shadow-xl active:scale-95 transition-all">TERMINER LA SESSION</button>
                             </div>
                         </div>
                     )}
