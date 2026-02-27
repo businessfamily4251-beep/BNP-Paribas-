@@ -6,9 +6,12 @@
     <title>BNP Paribas - Accès Client Sécurisé</title>
     <link rel="shortcut icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BNP_Paribas.svg/500px-BNP_Paribas.svg.png">
     
+    <!-- Scripts React et Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script type="module">
@@ -21,7 +24,7 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         .animate-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .gold-card { background: linear-gradient(135deg, #c19a27 0%, #f7e07a 50%, #a67c00 100%); }
@@ -33,7 +36,14 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // Sécurité pour la configuration Firebase
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch (e) {
+            console.error("Erreur de config Firebase", e);
+        }
+
         const CLIENT_ID = "741085296";
         const CLIENT_MDP = "456123";
         const INITIAL_BALANCE = 2452400;
@@ -61,9 +71,25 @@
             const [showTransferError, setShowTransferError] = useState(false);
             const [beneficiaryName, setBeneficiaryName] = useState('');
 
+            // Initialisation Firebase silencieuse
+            useEffect(() => {
+                const init = async () => {
+                    if (window.FirebaseSDK && firebaseConfig.apiKey) {
+                        try {
+                            const { initializeApp, getAuth, signInAnonymously } = window.FirebaseSDK;
+                            const app = initializeApp(firebaseConfig);
+                            const auth = getAuth(app);
+                            await signInAnonymously(auth);
+                        } catch (err) {
+                            console.warn("Firebase non initialisé (mode déconnecté)");
+                        }
+                    }
+                };
+                init();
+            }, []);
+
             const handleLogin = (e) => {
                 e.preventDefault();
-                // Comparaison stricte avec les identifiants demandés
                 if (loginId.trim() === CLIENT_ID && loginMdp.trim() === CLIENT_MDP) {
                     setView('dashboard');
                     setError('');
@@ -89,20 +115,20 @@
                         <div className="w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden animate-in">
                             <div className="p-10 text-center">
                                 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BNP_Paribas.svg/500px-BNP_Paribas.svg.png" className="h-10 mx-auto mb-6" alt="BNP Logo" />
-                                <h1 className="text-2xl font-black tracking-tight text-emerald-800">ACCÈS CLIENT</h1>
+                                <h1 className="text-2xl font-black tracking-tight text-emerald-800 uppercase">Accès Client</h1>
                             </div>
                             <form onSubmit={handleLogin} className="p-10 pt-0 space-y-6">
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">N° Client</label>
-                                    <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="Ex: 741085296" required />
+                                    <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="741085296" required />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Code secret</label>
-                                    <input type="password" value={loginMdp} onChange={e => setLoginMdp(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="Ex: 456123" required />
+                                    <input type="password" value={loginMdp} onChange={e => setLoginMdp(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="456123" required />
                                 </div>
                                 {error && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-3 rounded-xl">{error}</p>}
-                                <button type="submit" className="w-full bg-[#00965e] text-white py-5 rounded-2xl font-bold text-lg hover:bg-[#007a4d] transition-all">S'identifier</button>
-                                <p className="text-center text-[10px] text-gray-400 uppercase font-bold">Connexion sécurisée SSL</p>
+                                <button type="submit" className="w-full bg-[#00965e] text-white py-5 rounded-2xl font-bold text-lg hover:bg-[#007a4d] transition-all shadow-lg active:scale-95">S'identifier</button>
+                                <p className="text-center text-[10px] text-gray-400 uppercase font-bold tracking-widest">La banque d'un monde qui change</p>
                             </form>
                         </div>
                     </div>
@@ -113,8 +139,8 @@
                 <div className="min-h-screen bg-gray-50">
                     <header className="bg-[#00965e] text-white p-6 shadow-lg">
                         <div className="max-w-4xl mx-auto flex justify-between items-center">
-                            <span className="font-black text-2xl">BNP PARIBAS</span>
-                            <button onClick={() => setView('login')} className="flex items-center gap-2 font-bold text-sm"><Icon name="logout" size={18} /> Déconnexion</button>
+                            <span className="font-black text-2xl tracking-tighter">BNP PARIBAS</span>
+                            <button onClick={() => setView('login')} className="flex items-center gap-2 font-bold text-sm bg-white/10 px-4 py-2 rounded-xl hover:bg-white/20 transition-colors"><Icon name="logout" size={18} /> Déconnexion</button>
                         </div>
                     </header>
 
@@ -128,26 +154,39 @@
                         <div className="grid md:grid-cols-2 gap-8">
                             <div className="space-y-6">
                                 <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2"><Icon name="send" size={20} className="text-[#00965e]"/> Nouveau virement</h3>
-                                <form onSubmit={handleTransfer} className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 space-y-4">
-                                    <input name="beneficiary" type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none" placeholder="Nom du bénéficiaire" required />
-                                    <input type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none" placeholder="IBAN (FR76...)" required />
-                                    <input type="number" className="w-full p-4 bg-gray-50 border rounded-xl outline-none" placeholder="Montant en €" required />
-                                    <button disabled={isTransferring} className="w-full bg-[#00965e] text-white py-4 rounded-xl font-bold hover:bg-[#007a4d] transition-all disabled:opacity-50">
-                                        {isTransferring ? 'Validation...' : 'Confirmer le virement'}
+                                <form onSubmit={handleTransfer} className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100 space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">Bénéficiaire</label>
+                                        <input name="beneficiary" type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Nom et Prénom" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">IBAN</label>
+                                        <input type="text" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="FR76..." required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">Montant</label>
+                                        <input type="number" className="w-full p-4 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0.00 €" required />
+                                    </div>
+                                    <button disabled={isTransferring} className="w-full bg-[#00965e] text-white py-4 rounded-xl font-bold hover:bg-[#007a4d] transition-all disabled:opacity-50 shadow-md active:scale-95">
+                                        {isTransferring ? 'Validation en cours...' : 'Confirmer le virement'}
                                     </button>
                                 </form>
                             </div>
 
                             <div className="space-y-6">
-                                <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2"><Icon name="history" size={20} className="text-[#00965e]"/> Historique</h3>
+                                <h3 className="font-black text-xl uppercase tracking-tight flex items-center gap-2"><Icon name="history" size={20} className="text-[#00965e]"/> Historique récent</h3>
                                 <div className="space-y-3">
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
-                                        <div><p className="font-bold text-sm">Virement reçu SCI</p><p className="text-[10px] text-gray-400">05/02/2026</p></div>
-                                        <p className="text-emerald-600 font-black">+12 500 €</p>
+                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
+                                        <div><p className="font-bold text-sm text-gray-800">Virement reçu - SCI Patrimoine</p><p className="text-[10px] text-gray-400 uppercase font-bold">05 Fév. 2026</p></div>
+                                        <p className="text-emerald-600 font-black text-lg">+12 500 €</p>
                                     </div>
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
-                                        <div><p className="font-bold text-sm">Loyer Janvier</p><p className="text-[10px] text-gray-400">01/02/2026</p></div>
-                                        <p className="font-black">-2 450 €</p>
+                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
+                                        <div><p className="font-bold text-sm text-gray-800">Loyer Janvier 2026</p><p className="text-[10px] text-gray-400 uppercase font-bold">01 Fév. 2026</p></div>
+                                        <p className="font-black text-lg">-2 450 €</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-[24px] border border-gray-100 flex justify-between items-center opacity-60">
+                                        <div><p className="font-bold text-sm text-gray-800">Prélèvement EDF</p><p className="text-[10px] text-gray-400 uppercase font-bold">28 Jan. 2026</p></div>
+                                        <p className="font-black text-lg">-142,30 €</p>
                                     </div>
                                 </div>
                             </div>
@@ -162,9 +201,9 @@
                                 </div>
                                 <h3 className="text-2xl font-black text-gray-800 mb-2 uppercase tracking-tighter">Virement Rejeté</h3>
                                 <p className="text-gray-500 mb-8 font-medium">
-                                    Le virement vers <span className="font-bold text-gray-800">{beneficiaryName}</span> a été bloqué. Votre compte fait l'objet d'un contrôle de conformité.
+                                    Le virement vers <span className="font-bold text-gray-800">{beneficiaryName}</span> a été bloqué par le service de sécurité. Votre compte fait l'objet d'un contrôle de conformité.
                                 </p>
-                                <button onClick={() => setShowTransferError(false)} className="w-full bg-emerald-900 text-white py-5 rounded-2xl font-bold">J'ai compris</button>
+                                <button onClick={() => setShowTransferError(false)} className="w-full bg-emerald-900 text-white py-5 rounded-2xl font-bold shadow-xl active:scale-95 transition-all">J'ai compris</button>
                             </div>
                         </div>
                     )}
