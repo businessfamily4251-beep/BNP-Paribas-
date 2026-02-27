@@ -3,295 +3,400 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNP Paribas - Espace Client</title>
+    <title>BNP Paribas - Vos comptes en ligne</title>
+    <link rel="shortcut icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BNP_Paribas.svg/500px-BNP_Paribas.svg.png">
+    
+    <!-- Scripts React et Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        :root {
-            --bnp-green: #00965e;
-        }
-        .bg-bnp { background-color: var(--bnp-green); }
-        .text-bnp { color: var(--bnp-green); }
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--bnp-green);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
+        window.FirebaseSDK = { initializeApp, getFirestore, collection, addDoc, onSnapshot, query, orderBy, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, doc, setDoc };
+    </script>
 
-        .gold-card {
-            background: linear-gradient(135deg, #d4af37 0%, #f9f295 45%, #e6be8a 70%, #b8860b 100%);
-            color: #3d2b00;
-        }
-
-        #sidebar {
-            transition: transform 0.3s ease-in-out;
-            z-index: 50;
-        }
-
-        /* Correction cruciale pour la visibilité des sections */
-        .hidden-section { display: none !important; }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .animate-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .gold-card { background: linear-gradient(135deg, #c19a27 0%, #f7e07a 50%, #a67c00 100%); }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #00965e; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-gray-100 font-sans min-h-screen">
+<body class="bg-gray-50 text-gray-900">
+    <div id="root"></div>
 
-    <!-- Écran de Connexion -->
-    <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen p-4">
-        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border-t-8 border-bnp">
-            <div class="flex justify-center mb-6">
-                <div class="text-3xl font-bold text-bnp">BNP PARIBAS</div>
-            </div>
-            <h2 class="text-xl font-semibold mb-6 text-center text-gray-700">Accès à vos comptes</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">IDENTIFIANT</label>
-                    <input type="text" id="login-id" class="w-full p-3 border rounded focus:ring-2 focus:ring-green-500 outline-none" placeholder="7897620168">
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- CONFIGURATION ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const CLIENT_ID = "741085296";
+        const CLIENT_MDP = "456123";
+        const INITIAL_BALANCE = 2452400;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bnp-fictif-001';
+
+        const RIB_INFO = {
+            titulaire: "SABINE FOULON",
+            iban: "FR76 3000 4028 3700 0123 4567 890",
+            bic: "BNPAFRPPXXX",
+            banque: "BNP PARIBAS PARIS"
+        };
+
+        // --- COMPOSANT ICONES SVG ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const icons = {
+                menu: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+                x: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+                logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
+                eye: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>,
+                send: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
+                lock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+                chevron: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><polyline points="9 18 15 12 9 6"></polyline></svg>,
+                history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+                piggy: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2h0V5z"></path><path d="M7 11h.01"></path><path d="M11 20v2"></path><path d="M7 20v2"></path></svg>,
+                alert: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
+                creditCard: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>,
+                shield: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            };
+            return icons[name] || null;
+        };
+
+        const SidebarButton = ({ icon, label, onClick, active }) => (
+            <button onClick={onClick} className={`w-full p-4 text-left font-bold flex justify-between items-center rounded-2xl transition-all ${active ? 'bg-[#00965e] text-white shadow-lg shadow-emerald-100' : 'text-gray-400 hover:bg-gray-50'}`}>
+                <div className="flex items-center gap-4">
+                    <Icon name={icon} size={20} className={active ? "text-white" : "text-[#00965e] opacity-50"} />
+                    <span className="text-sm tracking-tight">{label}</span>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">CODE SECRET</label>
-                    <input type="password" id="login-code" class="w-full p-3 border rounded focus:ring-2 focus:ring-green-500 outline-none" placeholder="548521">
-                </div>
-                <button onclick="handleLogin()" class="w-full bg-bnp text-white py-3 rounded-lg font-bold hover:bg-green-700 transition">SE CONNECTER</button>
-            </div>
-            <p id="login-error" class="text-red-500 text-xs mt-4 text-center hidden">Identifiant ou code secret incorrect.</p>
-        </div>
-    </div>
+                <Icon name="chevron" size={14} className="opacity-30" />
+            </button>
+        );
 
-    <!-- Interface Principale -->
-    <div id="dashboard" class="hidden min-h-screen flex flex-col">
-        
-        <!-- Menu Dépliant -->
-        <div id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-white shadow-2xl transform -translate-x-full">
-            <div class="p-6 bg-bnp text-white flex justify-between items-center">
-                <span class="font-bold text-xl">MENU</span>
-                <button onclick="toggleSidebar()" class="text-2xl">&times;</button>
-            </div>
-            <nav class="mt-4">
-                <a href="#" onclick="showSection('transactions')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">Accueil / Historique</a>
-                <a href="#" onclick="showSection('rib')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">RIB / IBAN</a>
-                <a href="#" onclick="showSection('carte')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">CARTE</a>
-                <a href="#" onclick="showSection('virement')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">VIREMENT</a>
-                <a href="#" onclick="showSection('synthese')" class="block px-6 py-4 border-b hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">SYNTHÈSE</a>
-                <a href="#" onclick="showSection('services')" class="block px-6 py-4 hover:bg-gray-100 uppercase text-sm font-semibold tracking-wider">SERVICES</a>
-            </nav>
-        </div>
+        const HistoryTab = ({ transactions }) => {
+            const defaults = [
+                { label: "Virement reçu - SCI Patrimoine", amount: 12500, date: "05/02/2026", status: "Terminé" },
+                { label: "Loyer Janvier 2026", amount: -2450, date: "01/02/2026", status: "Terminé" },
+                { label: "Facture EDF - Électricité", amount: -142.30, date: "28/01/2026", status: "Terminé" },
+                { label: "Uber - VTC Paris", amount: -38.50, date: "26/01/2026", status: "Terminé" },
+                { label: "Carrefour Market", amount: -156.40, date: "25/01/2026", status: "Terminé" }
+            ];
+            const allTransactions = [...transactions, ...defaults];
 
-        <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
-
-        <!-- Partie Verte (Top) -->
-        <div class="bg-bnp text-white p-6 pb-12 shadow-md">
-            <div class="flex justify-between items-center mb-8">
-                <button onclick="toggleSidebar()" class="p-2 bg-white bg-opacity-20 rounded-lg">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </button>
-                <div class="flex items-center gap-4">
-                    <p class="text-sm font-medium">Compte Courant de Émilie Graux</p>
-                    <button onclick="handleLogout()" class="px-4 py-2 bg-white text-bnp font-bold rounded-lg text-xs">DÉCONNEXION</button>
-                </div>
-            </div>
-
-            <div class="text-left">
-                <h1 class="text-5xl font-extrabold">800 000,00 €</h1>
-                <div id="current-datetime" class="mt-4 text-xs opacity-80 font-mono bg-black bg-opacity-10 py-1 px-4 rounded-full inline-block"></div>
-            </div>
-        </div>
-
-        <!-- Partie Blanche (Contenu Dynamique) -->
-        <div class="bg-white flex-grow -mt-6 rounded-t-3xl p-6 shadow-inner">
-            
-            <!-- Section Historique -->
-            <div id="section-transactions" class="content-section">
-                <h3 class="text-xl font-bold mb-4">Dernières transactions</h3>
-                <div class="space-y-4">
-                    <div class="flex justify-between p-4 border-b">
-                        <div><p class="font-bold">VIREMENT ENTRANT</p><p class="text-xs text-gray-500">22/12/2025</p></div>
-                        <span class="text-green-600 font-bold">+ 15 000 €</span>
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Dernières opérations</h2>
+                    <div className="space-y-4">
+                        {allTransactions.map((t, i) => (
+                            <div key={i} className={`p-6 rounded-[28px] border flex justify-between items-center transition-all ${t.status === 'REJETÉ' ? 'bg-red-50 border-red-100' : 'bg-white border-gray-100 hover:shadow-md'} animate-in`}>
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-2xl ${t.status === 'REJETÉ' ? 'bg-red-500 text-white shadow-lg shadow-red-100' : 'bg-[#00965e]/10 text-[#00965e]'}`}>
+                                        <Icon name="history" size={22}/>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-gray-800">{t.label}</p>
+                                        <p className="text-xs text-gray-400 font-medium">{t.date} • {t.status || 'Terminé'}</p>
+                                        {t.reason && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase tracking-wider">{t.reason}</p>}
+                                    </div>
+                                </div>
+                                <div className={`text-xl font-black ${t.amount < 0 ? 'text-gray-900' : 'text-[#00965e]'}`}>
+                                    {t.amount < 0 ? '' : '+'}{t.amount.toLocaleString('fr-FR')} €
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div class="flex justify-between p-4 border-b">
-                        <div><p class="font-bold">PAIEMENT CARTE</p><p class="text-xs text-gray-500">21/12/2025</p></div>
-                        <span class="text-red-600 font-bold">- 1 250 €</span>
-                    </div>
                 </div>
-            </div>
+            );
+        };
 
-            <!-- Section RIB -->
-            <div id="section-rib" class="content-section hidden-section">
-                <h3 class="text-xl font-bold mb-4">RIB / IBAN</h3>
-                <div class="bg-gray-50 p-4 rounded border">
-                    <p class="text-xs text-gray-500">TITULAIRE</p>
-                    <p class="font-bold mb-2">Mme Émilie GRAUX</p>
-                    <p class="text-xs text-gray-500">IBAN</p>
-                    <p class="font-mono font-bold">FR76 3000 4015 6278 9762 0168 12</p>
-                </div>
-            </div>
-
-            <!-- Section Carte (Strictement isolée ici) -->
-            <div id="section-carte" class="content-section hidden-section flex flex-col items-center">
-                <h3 class="text-xl font-bold mb-6 self-start">MA CARTE GOLD</h3>
-                <div class="gold-card w-full max-w-sm h-52 rounded-2xl p-6 shadow-2xl relative overflow-hidden transition-transform hover:scale-105 duration-300">
-                    <div class="flex justify-between items-start mb-8">
-                        <div class="text-xs font-bold italic">BNP PARIBAS</div>
-                        <div class="w-12 h-10 bg-gradient-to-br from-yellow-200 to-yellow-500 rounded-md opacity-50"></div>
-                    </div>
-                    
-                    <div class="text-2xl font-mono tracking-widest mb-4">
-                        4576 •••• •••• 1289
-                    </div>
-                    
-                    <div class="flex justify-between items-end">
-                        <div class="space-y-1">
-                            <p class="text-[10px] uppercase opacity-70">Titulaire</p>
-                            <p class="font-bold text-sm">ÉMILIE GRAUX</p>
+        const RibTab = () => (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Votre RIB / IBAN</h2>
+                <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-xl space-y-8">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Titulaire du compte</p>
+                            <p className="text-xl font-black">{RIB_INFO.titulaire}</p>
                         </div>
-                        <div class="text-right">
-                            <p class="text-[10px] uppercase opacity-70">Expire fin</p>
-                            <p class="font-bold text-sm">12/28</p>
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BNP_Paribas.svg/500px-BNP_Paribas.svg.png" className="h-8 opacity-20" alt="BNP Logo" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">IBAN (International Bank Account Number)</p>
+                        <div className="p-4 bg-gray-50 rounded-2xl font-mono text-lg flex justify-between items-center">
+                            <span>{RIB_INFO.iban}</span>
+                            <button className="text-[#00965e] hover:bg-emerald-50 p-2 rounded-xl transition-colors"><Icon name="chevron" size={20}/></button>
                         </div>
                     </div>
-                    <div class="absolute bottom-4 right-4 font-bold italic text-xl opacity-40">VISA</div>
-                </div>
-                <div class="mt-8 w-full max-w-sm bg-gray-50 p-4 rounded-lg border text-center">
-                    <p class="text-xs text-gray-500 mb-1">IBAN CRYPTÉ ASSOCIÉ :</p>
-                    <p class="font-mono font-bold">FR76 •••• •••• •••• 9762 •••• 12</p>
-                </div>
-            </div>
-
-            <!-- Section Virement -->
-            <div id="section-virement" class="content-section hidden-section">
-                <h3 class="text-xl font-bold mb-4">VIREMENT</h3>
-                <div id="transfer-form" class="space-y-3">
-                    <input type="text" placeholder="Nom" class="w-full p-2 border rounded">
-                    <input type="text" placeholder="Nom de banque" class="w-full p-2 border rounded">
-                    <input type="text" placeholder="IBAN" class="w-full p-2 border rounded">
-                    <input type="text" placeholder="Code SWIFT" class="w-full p-2 border rounded">
-                    <input type="number" placeholder="Montant" class="w-full p-2 border rounded">
-                    <input type="text" placeholder="Motif" class="w-full p-2 border rounded">
-                    <button onclick="executeTransfer()" class="w-full bg-bnp text-white py-3 rounded font-bold">VALIDER LE VIREMENT</button>
-                </div>
-                <div id="transfer-loading" class="hidden flex flex-col items-center p-10">
-                    <div class="loader mb-4"></div>
-                    <p>Traitement en cours...</p>
-                </div>
-            </div>
-
-            <!-- Section Synthèse -->
-            <div id="section-synthese" class="content-section hidden-section space-y-4">
-                <h3 class="text-xl font-bold">SYNTHÈSE DES COMPTES</h3>
-                <div class="p-4 bg-gray-50 rounded border-l-4 border-bnp flex justify-between items-center">
-                    <span>Compte Courant</span><span class="font-bold">800 000,00 €</span>
-                </div>
-                <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 flex justify-between items-center">
-                    <span>Compte d'Épargne</span><span class="font-bold">125 450,00 €</span>
-                </div>
-                <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 flex justify-between items-center">
-                    <span>Livret A</span><span class="font-bold">22 950,00 €</span>
-                </div>
-            </div>
-
-            <!-- Section Services -->
-            <div id="section-services" class="content-section hidden-section">
-                <h3 class="text-xl font-bold mb-4">SERVICES</h3>
-                <div class="space-y-3">
-                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
-                        <span class="font-bold">PRÊTS</span>
-                        <p class="hidden text-sm text-gray-600 mt-2 italic">Consultez nos offres de financement personnalisées.</p>
+                    <div className="grid grid-cols-2 gap-8">
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Code BIC / SWIFT</p>
+                            <p className="font-bold">{RIB_INFO.bic}</p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Domiciliation</p>
+                            <p className="font-bold">{RIB_INFO.banque}</p>
+                        </div>
                     </div>
-                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
-                        <span class="font-bold">INVESTISSEMENTS</span>
-                        <p class="hidden text-sm text-gray-600 mt-2 italic">Gérez vos placements et votre épargne financière.</p>
-                    </div>
-                    <div onclick="this.querySelector('p').classList.toggle('hidden')" class="p-4 border rounded cursor-pointer bg-gray-50 hover:bg-white transition">
-                        <span class="font-bold">ASSURANCES</span>
-                        <p class="hidden text-sm text-gray-600 mt-2 italic">Découvrez nos solutions de protection et prévoyance.</p>
-                    </div>
+                    <button className="w-full bg-gray-900 text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-2">Partager mes coordonnées</button>
                 </div>
             </div>
+        );
 
-        </div>
-    </div>
+        const TransferTab = ({ onSubmit, loading }) => (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Nouveau virement</h2>
+                <form onSubmit={onSubmit} className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-xl space-y-6">
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Bénéficiaire (Nom complet)</label>
+                        <input name="beneficiary" type="text" className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="Ex: Jean Dupont" required />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">IBAN du bénéficiaire</label>
+                        <input name="iban_beneficiary" type="text" className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="FR76 ..." required />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Montant (€)</label>
+                        <input name="amount" type="number" step="0.01" className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="0.00" required />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Motif du virement</label>
+                        <input name="reference" type="text" className="w-full p-4 bg-gray-50 border rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="Ex: Loyer, Facture..." />
+                    </div>
+                    <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-bold text-lg shadow-xl transition-all ${loading ? 'bg-gray-200 text-gray-400' : 'bg-[#00965e] text-white hover:bg-[#007a4d] active:scale-95'}`}>
+                        {loading ? 'Traitement en cours...' : 'Confirmer le virement'}
+                    </button>
+                </form>
+            </div>
+        );
 
-    <!-- Notification Push (Modal) -->
-    <div id="push-notification" class="fixed inset-0 flex items-center justify-center z-[100] hidden px-4">
-        <div class="bg-black bg-opacity-50 absolute inset-0"></div>
-        <div class="bg-white rounded-xl p-8 max-w-sm w-full relative shadow-2xl text-center border-t-8 border-red-500">
-            <h4 class="text-lg font-bold mb-4">Notification</h4>
-            <p class="text-sm text-gray-600 mb-6 leading-relaxed">Votre quota de retraits en espèces et plafond de paiement/virement du mois son atteint . veullez conacter votre gesionnaire pour plus d'information.</p>
-            <button onclick="document.getElementById('push-notification').classList.add('hidden')" class="w-full bg-gray-900 text-white py-3 rounded font-bold">FERMER</button>
-        </div>
-    </div>
+        const CardTab = () => (
+            <div className="space-y-6">
+                <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Mes Cartes</h2>
+                <div className="gold-card p-10 rounded-[32px] text-white shadow-2xl relative overflow-hidden aspect-[1.6/1]">
+                    <div className="absolute top-0 right-0 p-8 opacity-20">
+                        <Icon name="creditCard" size={120} />
+                    </div>
+                    <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-4">Visa Premier Gold</p>
+                                <div className="w-16 h-12 bg-yellow-400/30 rounded-lg backdrop-blur-md border border-white/20"></div>
+                            </div>
+                            <span className="font-black text-2xl tracking-tighter">BNP PARIBAS</span>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold tracking-[0.2em] mb-4">•••• •••• •••• 8295</p>
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase opacity-60">Titulaire</p>
+                                    <p className="font-bold uppercase tracking-tight">SABINE FOULON</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase opacity-60">Expire</p>
+                                    <p className="font-bold">09/28</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <button className="bg-white p-6 rounded-3xl border border-gray-100 font-bold flex flex-col gap-3 hover:shadow-md transition-all">
+                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center"><Icon name="lock" size={20}/></div>
+                        <span>Bloquer la carte</span>
+                    </button>
+                    <button className="bg-white p-6 rounded-3xl border border-gray-100 font-bold flex flex-col gap-3 hover:shadow-md transition-all">
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><Icon name="shield" size={20}/></div>
+                        <span>Plafonds</span>
+                    </button>
+                </div>
+            </div>
+        );
 
-    <script>
-        function updateDateTime() {
-            const now = new Date();
-            const element = document.getElementById('current-datetime');
-            if (element) {
-                element.textContent = now.toLocaleDateString('fr-FR', {
-                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                });
+        function App() {
+            const [db, setDb] = useState(null);
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('login');
+            const [activeTab, setActiveTab] = useState('history');
+            const [loginId, setLoginId] = useState('');
+            const [loginMdp, setLoginMdp] = useState('');
+            const [error, setError] = useState('');
+            const [showBalance, setShowBalance] = useState(true);
+            const [menuOpen, setMenuOpen] = useState(false);
+            const [transactions, setTransactions] = useState([]);
+            const [isTransferring, setIsTransferring] = useState(false);
+            const [showTransferError, setShowTransferError] = useState(false);
+            const [currentTime, setCurrentTime] = useState(new Date());
+
+            useEffect(() => {
+                const initFirebase = async () => {
+                    if (window.FirebaseSDK) {
+                        const { initializeApp, getFirestore, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseSDK;
+                        const app = initializeApp(firebaseConfig);
+                        const firestore = getFirestore(app);
+                        const auth = getAuth(app);
+                        setDb(firestore);
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        onAuthStateChanged(auth, setUser);
+                    }
+                };
+                initFirebase();
+            }, []);
+
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            useEffect(() => {
+                if (!db || !user) return;
+                const { collection, onSnapshot } = window.FirebaseSDK;
+                const unsubTrans = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), (snap) => {
+                    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setTransactions(data.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)));
+                }, (err) => console.error(err));
+
+                return () => unsubTrans();
+            }, [db, user]);
+
+            const handleClientLogin = (e) => {
+                e.preventDefault();
+                if (loginId.trim() === CLIENT_ID && loginMdp.trim() === CLIENT_MDP) {
+                    setView('client');
+                    setError('');
+                } else {
+                    setError('Identifiants incorrects.');
+                }
+            };
+
+            const startTransfer = async (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const beneficiary = form.beneficiary.value;
+                const amount = form.amount.value;
+                setIsTransferring(true);
+                
+                setTimeout(async () => {
+                    setIsTransferring(false);
+                    const { collection, addDoc } = window.FirebaseSDK;
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), {
+                            label: `ÉCHEC VIREMENT - ${beneficiary}`,
+                            amount: -parseFloat(amount),
+                            date: new Date().toLocaleDateString('fr-FR'),
+                            status: 'REJETÉ',
+                            reason: 'Compte gelé (Conformité)',
+                            timestamp: Date.now()
+                        });
+                        setShowTransferError(true);
+                    } catch (err) { console.error(err); }
+                }, 4000);
+            };
+
+            if (view === 'login') {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+                        <div className="w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden animate-in">
+                            <div className="bg-[#00965e] p-12 text-center">
+                                <h1 className="text-white text-4xl font-black tracking-tighter uppercase">BNP PARIBAS</h1>
+                                <p className="text-white/70 text-xs mt-4 uppercase tracking-[0.2em] font-bold">Espace Client</p>
+                            </div>
+                            <form onSubmit={handleClientLogin} className="p-10 space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">N° Client</label>
+                                    <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="741085296" required />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Code secret</label>
+                                    <input type="password" value={loginMdp} onChange={e => setLoginMdp(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00965e]" placeholder="••••••" required />
+                                </div>
+                                {error && <p className="text-red-500 text-sm font-bold text-center">{error}</p>}
+                                <button type="submit" className="w-full bg-[#00965e] text-white py-5 rounded-2xl font-bold text-lg shadow-xl shadow-emerald-50 hover:bg-[#007a4d] transition-all active:scale-95">S'identifier</button>
+                                <p className="text-center text-[10px] text-gray-400 mt-4 uppercase font-bold tracking-widest">La banque d'un monde qui change</p>
+                            </form>
+                        </div>
+                    </div>
+                );
             }
-        }
-        setInterval(updateDateTime, 1000);
 
-        function handleLogin() {
-            const id = document.getElementById('login-id').value.trim();
-            const code = document.getElementById('login-code').value.trim();
-            const errorElement = document.getElementById('login-error');
-            
-            if (id === "7897620168" && code === "548521") {
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-                errorElement.classList.add('hidden');
-                showSection('transactions');
-                updateDateTime();
-            } else {
-                errorElement.classList.remove('hidden');
-            }
+            return (
+                <div className="min-h-screen flex flex-col bg-white">
+                    <header className="bg-[#00965e] text-white p-6 shadow-xl sticky top-0 z-50">
+                        <div className="flex justify-between items-center max-w-6xl mx-auto w-full">
+                            <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 hover:bg-white/20 rounded-xl transition-colors"><Icon name={menuOpen ? "x" : "menu"} /></button>
+                            <span className="font-black text-2xl tracking-tighter">BNP PARIBAS</span>
+                            <button onClick={() => setView('login')} className="p-2 hover:bg-white/20 rounded-xl transition-colors"><Icon name="logout"/></button>
+                        </div>
+                        <div className="mt-8 flex flex-col items-center">
+                            <p className="font-bold text-lg mb-4">Bonjour Mme Sabine Foulon</p>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Solde de vos comptes</span>
+                                <button onClick={() => setShowBalance(!showBalance)} className="hover:scale-110 transition-transform"><Icon name="eye" size={16}/></button>
+                            </div>
+                            <div className="text-5xl font-black tracking-tighter">
+                                {showBalance ? `${INITIAL_BALANCE.toLocaleString('fr-FR')} €` : '•••••• €'}
+                            </div>
+                            <div className="mt-4 text-[10px] bg-black/10 px-4 py-1 rounded-full font-bold opacity-80 uppercase tracking-widest">
+                                {currentTime.toLocaleDateString('fr-FR')} - {currentTime.toLocaleTimeString('fr-FR')}
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="flex flex-1 relative overflow-hidden">
+                        <aside className={`fixed top-0 left-0 bottom-0 bg-white w-80 shadow-2xl border-r z-[60] p-6 space-y-2 transform transition-transform duration-300 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                            <div className="flex justify-between items-center mb-8">
+                                <span className="font-black text-emerald-600 text-xl tracking-tighter">MENU</span>
+                                <button onClick={() => setMenuOpen(false)} className="text-gray-400"><Icon name="x"/></button>
+                            </div>
+                            <SidebarButton icon="history" label="Historique" active={activeTab === 'history'} onClick={() => {setActiveTab('history'); setMenuOpen(false);}} />
+                            <SidebarButton icon="chevron" label="RIB / IBAN" active={activeTab === 'rib'} onClick={() => {setActiveTab('rib'); setMenuOpen(false);}} />
+                            <SidebarButton icon="send" label="Virement" active={activeTab === 'virement'} onClick={() => {setActiveTab('virement'); setMenuOpen(false);}} />
+                            <SidebarButton icon="creditCard" label="Ma Carte Visa Gold" active={activeTab === 'carte'} onClick={() => {setActiveTab('carte'); setMenuOpen(false);}} />
+                        </aside>
+
+                        <main className="flex-1 p-6 md:p-12 overflow-y-auto bg-gray-50">
+                            <div className="max-w-4xl mx-auto animate-in">
+                                {activeTab === 'history' && <HistoryTab transactions={transactions} />}
+                                {activeTab === 'rib' && <RibTab />}
+                                {activeTab === 'virement' && <TransferTab onSubmit={startTransfer} loading={isTransferring} />}
+                                {activeTab === 'carte' && <CardTab />}
+                            </div>
+                        </main>
+                    </div>
+
+                    {showTransferError && (
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[40px] p-8 max-w-md w-full shadow-2xl animate-in border border-red-100 text-center">
+                                <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <Icon name="alert" size={40} />
+                                </div>
+                                <h3 className="text-2xl font-black text-gray-800 mb-4 tracking-tighter uppercase">Virement Refusé</h3>
+                                <p className="text-gray-600 font-medium leading-relaxed mb-8 text-center px-4">
+                                    Ce compte est gelé pour un contrôle de conformité. Contactez votre agence pour plus d'information.
+                                </p>
+                                <button onClick={() => { setShowTransferError(false); setActiveTab('history'); }} className="w-full bg-gray-900 text-white py-5 rounded-2xl font-bold text-lg shadow-xl active:scale-95 transition-all">Fermer et voir l'historique</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
         }
 
-        function handleLogout() {
-            document.getElementById('dashboard').classList.add('hidden');
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('login-id').value = "";
-            document.getElementById('login-code').value = "";
-        }
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('-translate-x-full');
-            document.getElementById('sidebar-overlay').classList.toggle('hidden');
-        }
-
-        function showSection(id) {
-            document.querySelectorAll('.content-section').forEach(s => {
-                s.classList.add('hidden-section');
-            });
-            
-            const target = document.getElementById('section-' + id);
-            if (target) {
-                target.classList.remove('hidden-section');
-            }
-            
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar.classList.contains('-translate-x-full')) {
-                toggleSidebar();
-            }
-        }
-
-        function executeTransfer() {
-            document.getElementById('transfer-form').classList.add('hidden');
-            document.getElementById('transfer-loading').classList.remove('hidden');
-            setTimeout(() => {
-                document.getElementById('transfer-loading').classList.add('hidden');
-                document.getElementById('transfer-form').classList.remove('hidden');
-                document.getElementById('push-notification').classList.remove('hidden');
-            }, 7000);
-        }
-        
-        window.onload = updateDateTime;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
