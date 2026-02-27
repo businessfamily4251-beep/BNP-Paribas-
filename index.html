@@ -46,7 +46,6 @@
 
         const CLIENT_ID = "741085296";
         const CLIENT_MDP = "456123";
-        const INITIAL_BALANCE = 2452400;
 
         const Icon = ({ name, size = 24, className = "" }) => {
             const icons = {
@@ -56,7 +55,8 @@
                 send: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
                 history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
                 alert: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
-                home: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                home: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
+                check: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>
             };
             return icons[name] || null;
         };
@@ -67,10 +67,19 @@
             const [loginMdp, setLoginMdp] = useState('');
             const [error, setError] = useState('');
             const [isTransferring, setIsTransferring] = useState(false);
-            const [showTransferError, setShowTransferError] = useState(false);
+            const [showSuccessModal, setShowSuccessModal] = useState(false);
             const [beneficiaryName, setBeneficiaryName] = useState('');
+            const [transferAmount, setTransferAmount] = useState('');
+            const [balance, setBalance] = useState(2452400);
             const [activeTab, setActiveTab] = useState('overview');
             const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [history, setHistory] = useState([
+                { label: 'Virement reçu - SCI Patrimoine', date: '05 Fév. 2026', amount: '+12 500,00', type: 'positive' },
+                { label: 'Loyer Résidence Janvier', date: '01 Fév. 2026', amount: '-2 450,00', type: 'negative' },
+                { label: 'Prélèvement EDF Services', date: '28 Jan. 2026', amount: '-142,30', type: 'negative' },
+                { label: 'Paiement Apple Store Paris', date: '25 Jan. 2026', amount: '-1 199,00', type: 'negative' },
+                { label: 'Dividendes Action BNP', date: '20 Jan. 2026', amount: '+3 420,50', type: 'positive' }
+            ]);
             const menuRef = useRef(null);
 
             useEffect(() => {
@@ -95,12 +104,28 @@
 
             const handleTransfer = (e) => {
                 e.preventDefault();
-                setBeneficiaryName(e.target.beneficiary.value);
+                const amount = parseFloat(e.target.amount.value);
+                const name = e.target.beneficiary.value;
+                
+                setBeneficiaryName(name);
+                setTransferAmount(amount);
                 setIsTransferring(true);
+                
                 setTimeout(() => {
                     setIsTransferring(false);
-                    setShowTransferError(true);
-                }, 2500);
+                    // Débiter le compte
+                    setBalance(prev => prev - amount);
+                    // Ajouter à l'historique
+                    const newTx = {
+                        label: `Virement vers ${name}`,
+                        date: 'Aujourd\'hui',
+                        amount: `-${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}`,
+                        type: 'negative',
+                        pending: true
+                    };
+                    setHistory([newTx, ...history]);
+                    setShowSuccessModal(true);
+                }, 2000);
             };
 
             if (view === 'login') {
@@ -130,7 +155,6 @@
 
             return (
                 <div className="min-h-screen bg-gray-50 flex flex-col">
-                    {/* Header avec Menu en haut à gauche */}
                     <header className="bg-emerald-900 text-white p-4 md:px-8 flex justify-between items-center sticky top-0 z-[100] shadow-xl">
                         <div className="flex items-center gap-6" ref={menuRef}>
                             <button 
@@ -140,7 +164,6 @@
                                 <Icon name="menu" size={28} />
                             </button>
                             
-                            {/* Menu Déroulant */}
                             {isMenuOpen && (
                                 <div className="absolute top-16 left-4 w-72 bg-white rounded-[32px] dropdown-shadow text-emerald-950 p-4 border border-gray-100 animate-in overflow-hidden">
                                     <div className="space-y-1">
@@ -187,49 +210,44 @@
                         
                         {activeTab === 'overview' && (
                             <>
-                                {/* SOLDE EN HAUT */}
                                 <section className="space-y-2">
                                     <div className="bg-white p-10 md:p-14 rounded-[48px] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden">
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full opacity-50"></div>
                                         <div className="relative z-10">
                                             <p className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">Solde du Compte Courant</p>
                                             <h2 className="text-5xl md:text-7xl font-black text-emerald-900 tracking-tighter leading-none">
-                                                {INITIAL_BALANCE.toLocaleString('fr-FR')} <span className="text-3xl md:text-5xl">€</span>
+                                                {balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-3xl md:text-5xl">€</span>
                                             </h2>
                                         </div>
-                                        <div className="bg-emerald-900 text-white px-6 py-4 rounded-[24px] shadow-lg flex items-center gap-4 group cursor-pointer active:scale-95 transition-transform">
+                                        <div className="bg-emerald-900 text-white px-6 py-4 rounded-[24px] shadow-lg flex items-center gap-4 group cursor-pointer active:scale-95 transition-transform" onClick={() => setActiveTab('virement')}>
                                             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
                                                 <Icon name="send" size={22} />
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest">Actions rapides</p>
-                                                <p className="font-bold text-sm" onClick={() => setActiveTab('virement')}>Virement express</p>
+                                                <p className="font-bold text-sm">Virement express</p>
                                             </div>
                                         </div>
                                     </div>
                                 </section>
 
-                                {/* HISTORIQUE EN BAS */}
                                 <section className="space-y-6">
                                     <div className="flex justify-between items-end px-4">
                                         <h3 className="font-black text-2xl text-emerald-900 tracking-tighter uppercase">Dernières Opérations</h3>
                                         <button className="text-xs font-bold text-emerald-600 uppercase tracking-widest hover:underline">Voir tout</button>
                                     </div>
                                     <div className="space-y-3">
-                                        {[
-                                            { label: 'Virement reçu - SCI Patrimoine', date: '05 Fév. 2026', amount: '+12 500,00', type: 'positive' },
-                                            { label: 'Loyer Résidence Janvier', date: '01 Fév. 2026', amount: '-2 450,00', type: 'negative' },
-                                            { label: 'Prélèvement EDF Services', date: '28 Jan. 2026', amount: '-142,30', type: 'negative' },
-                                            { label: 'Paiement Apple Store Paris', date: '25 Jan. 2026', amount: '-1 199,00', type: 'negative' },
-                                            { label: 'Dividendes Action BNP', date: '20 Jan. 2026', amount: '+3 420,50', type: 'positive' }
-                                        ].map((item, idx) => (
-                                            <div key={idx} className="bg-white p-6 rounded-[32px] border border-gray-50 flex justify-between items-center hover:shadow-xl hover:scale-[1.01] transition-all group">
+                                        {history.map((item, idx) => (
+                                            <div key={idx} className={`bg-white p-6 rounded-[32px] border border-gray-50 flex justify-between items-center hover:shadow-xl hover:scale-[1.01] transition-all group ${item.pending ? 'border-amber-200 bg-amber-50/20' : ''}`}>
                                                 <div className="flex items-center gap-5">
-                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.type === 'positive' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.type === 'positive' ? 'bg-emerald-50 text-emerald-600' : (item.pending ? 'bg-amber-100 text-amber-600' : 'bg-gray-50 text-gray-400')}`}>
                                                         <Icon name={item.type === 'positive' ? 'send' : 'history'} size={20} />
                                                     </div>
                                                     <div>
-                                                        <p className="font-bold text-gray-800 group-hover:text-emerald-900 transition-colors">{item.label}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-gray-800 group-hover:text-emerald-900 transition-colors">{item.label}</p>
+                                                            {item.pending && <span className="text-[9px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter animate-pulse">En cours de traitement</span>}
+                                                        </div>
                                                         <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">{item.date}</p>
                                                     </div>
                                                 </div>
@@ -259,7 +277,7 @@
                                     </div>
                                     <div className="space-y-2">
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 text-center">Montant à transférer</label>
-                                        <input type="number" className="w-full p-8 bg-emerald-50/50 border-none rounded-[32px] outline-none focus:ring-2 focus:ring-emerald-500 text-5xl font-black text-emerald-900 text-center" placeholder="0.00" required />
+                                        <input name="amount" type="number" step="0.01" className="w-full p-8 bg-emerald-50/50 border-none rounded-[32px] outline-none focus:ring-2 focus:ring-emerald-500 text-5xl font-black text-emerald-900 text-center" placeholder="0.00" required />
                                     </div>
                                     <button disabled={isTransferring} className="w-full bg-[#00965e] text-white py-6 rounded-[24px] font-black text-xl hover:bg-[#007a4d] transition-all disabled:opacity-50 shadow-2xl shadow-emerald-900/20 active:scale-95">
                                         {isTransferring ? 'SÉCURISATION DU TRANSFERT...' : 'VALIDER LE VIREMENT'}
@@ -308,17 +326,17 @@
                         )}
                     </main>
 
-                    {showTransferError && (
+                    {showSuccessModal && (
                         <div className="fixed inset-0 bg-emerald-950/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                             <div className="bg-white rounded-[48px] p-12 max-w-md w-full text-center shadow-2xl animate-in">
-                                <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8">
-                                    <Icon name="alert" size={48} />
+                                <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8">
+                                    <Icon name="check" size={48} />
                                 </div>
-                                <h3 className="text-3xl font-black text-gray-800 mb-3 uppercase tracking-tighter leading-none">VIREMENT REJETÉ</h3>
+                                <h3 className="text-3xl font-black text-gray-800 mb-3 uppercase tracking-tighter leading-none">VIREMENT EFFECTUÉ</h3>
                                 <p className="text-gray-500 mb-10 font-medium text-lg leading-relaxed">
-                                    Le transfert vers <span className="font-bold text-gray-900">{beneficiaryName}</span> a été suspendu pour <span className="text-red-600 font-bold uppercase tracking-tight">Vérification de Conformité</span>.
+                                    Votre virement de <span className="font-bold text-emerald-600">{transferAmount.toLocaleString('fr-FR')} €</span> vers <span className="font-bold text-gray-900">{beneficiaryName}</span> a été transmis avec succès.
                                 </p>
-                                <button onClick={() => setShowTransferError(false)} className="w-full bg-emerald-900 text-white py-6 rounded-[24px] font-black text-xl shadow-xl active:scale-95 transition-all">TERMINER LA SESSION</button>
+                                <button onClick={() => { setShowSuccessModal(false); setActiveTab('overview'); }} className="w-full bg-emerald-900 text-white py-6 rounded-[24px] font-black text-xl shadow-xl active:scale-95 transition-all">VOIR L'HISTORIQUE</button>
                             </div>
                         </div>
                     )}
